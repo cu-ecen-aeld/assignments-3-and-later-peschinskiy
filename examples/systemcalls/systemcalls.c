@@ -132,7 +132,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         case -1:
             perror("fork");
             return false;
-        case 0:
+        case 0: {
             int fd = creat(outputfile, 0644);
             if (fd == -1) {
                 perror("creat");
@@ -149,6 +149,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
                 perror("execv");
                 abort();
             }
+        }
         default:
             ret = waitpid(ret, NULL, 0);
             if (ret == -1) {
