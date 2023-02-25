@@ -1,5 +1,12 @@
 #include "systemcalls.h"
 
+#include <stdlib.h>
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,7 +23,10 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
+    int ret = system(cmd);
+    if (ret == -1) {
+        return false;
+    }
     return true;
 }
 
@@ -59,6 +69,30 @@ bool do_exec(int count, ...)
  *
 */
 
+    int pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return false;
+    } else if (pid == 0) {
+        int ret = execv(command[0], command);
+        if (ret == -1) {
+            perror("execv");
+            exit(-1);
+        }
+    } else {
+        int status;
+        int ret = waitpid(pid, &status, 0);
+        if (ret == -1) {
+            perror("waitpid");
+            return false;
+        }
+        if (WIFEXITED(status)) {
+            if (WEXITSTATUS(status) != 0) {
+                return false;
+            }
+        }
+    }
+
     va_end(args);
 
     return true;
@@ -92,6 +126,36 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+
+    int ret = fork();
+    switch (ret) {
+        case -1:
+            perror("fork");
+            return false;
+        case 0:
+            int fd = creat(outputfile, 0644);
+            if (fd == -1) {
+                perror("creat");
+                abort();
+            }
+            ret = dup2(fd, STDOUT_FILENO);
+            if (ret == -1) {
+                perror("dup2");
+                abort();
+            }
+            close(fd);
+            ret = execv(command[0], command);
+            if (ret == -1) {
+                perror("execv");
+                abort();
+            }
+        default:
+            ret = waitpid(ret, NULL, 0);
+            if (ret == -1) {
+                perror("waitpid");
+                return false;
+            }
+    }
 
     va_end(args);
 
